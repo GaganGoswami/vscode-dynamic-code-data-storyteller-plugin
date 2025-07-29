@@ -24,27 +24,27 @@
     "commands": [
       {
         "command": "storyteller.test",
-        "title": "Test Extension",
+        "title": "Code Storyteller - Test Extension",
         "category": "Code Storyteller"
       },
       {
         "command": "storyteller.traceVariable",
-        "title": "Trace Variable",
+        "title": "Code Storyteller - Trace Variable",
         "category": "Code Storyteller"
       },
       {
         "command": "storyteller.showCallGraph",
-        "title": "Show Call Graph",
+        "title": "Code Storyteller - Show Call Graph",
         "category": "Code Storyteller"
       },
       {
         "command": "storyteller.whatIfAnalysis",
-        "title": "What-If Analysis",
+        "title": "Code Storyteller - What-If Analysis",
         "category": "Code Storyteller"
       },
       {
         "command": "storyteller.openVisualization",
-        "title": "Open Visualization Panel",
+        "title": "Code Storyteller - Open Visualization Panel",
         "category": "Code Storyteller"
       }
     ],
@@ -53,7 +53,27 @@
         {
           "command": "storyteller.traceVariable",
           "when": "editorHasSelection",
-          "group": "navigation"
+          "group": "1_codeStorytellerPrimary@1"
+        },
+        {
+          "command": "storyteller.showCallGraph",
+          "when": "editorTextFocus",
+          "group": "1_codeStorytellerPrimary@2"
+        },
+        {
+          "command": "storyteller.whatIfAnalysis",
+          "when": "editorTextFocus",
+          "group": "1_codeStorytellerPrimary@3"
+        },
+        {
+          "command": "storyteller.openVisualization",
+          "when": "editorTextFocus",
+          "group": "1_codeStorytellerPrimary@4"
+        },
+        {
+          "command": "storyteller.test",
+          "when": "editorTextFocus",
+          "group": "9_codeStorytellerUtility@1"
         }
       ],
       "commandPalette": [

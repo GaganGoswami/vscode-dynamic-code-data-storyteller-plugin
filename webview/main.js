@@ -7,7 +7,12 @@ let currentData = {
     variableTrace: null,
     whatIfAnalysis: null,
     sideEffects: null,
-    timeline: null
+    timeline: null,
+    currentFile: {
+        name: 'No file selected',
+        path: '',
+        extension: 'FILE'
+    }
 };
 
 let animationState = {
@@ -23,6 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeControls();
     initializeVisualizations();
     setupMessageHandling();
+    requestFileContext();
 });
 
 function initializeTabs() {
@@ -97,11 +103,17 @@ function setupMessageHandling() {
             case 'updateCallGraph':
                 updateCallGraphVisualization(message.data);
                 break;
+            case 'updateVariableTrace':
+                updateVariableTraceVisualization(message.data);
+                break;
             case 'updateWhatIfAnalysis':
                 updateWhatIfVisualization(message.data);
                 break;
             case 'updateSideEffects':
                 updateSideEffectsVisualization(message.data);
+                break;
+            case 'updateFileContext':
+                updateFileContext(message.data);
                 break;
             case 'debugSessionStart':
                 onDebugSessionStart(message.data);
@@ -113,6 +125,71 @@ function setupMessageHandling() {
                 handleDebugMessage(message.data);
                 break;
         }
+    });
+
+    // Set up jump to source button
+    document.getElementById('jump-to-source').addEventListener('click', function() {
+        vscode.postMessage({
+            command: 'jumpToCurrentSource'
+        });
+    });
+}
+
+// File context management
+function requestFileContext() {
+    vscode.postMessage({
+        command: 'requestFileContext'
+    });
+}
+
+function updateFileContext(fileData) {
+    currentData.currentFile = {
+        name: fileData.fileName,
+        path: fileData.filePath,
+        extension: fileData.fileExtension
+    };
+
+    // Update file header
+    const fileHeader = document.getElementById('current-file-header');
+    const fileIcon = document.getElementById('file-icon');
+    const fileName = document.getElementById('file-name');
+    const filePath = document.getElementById('file-path');
+
+    fileHeader.style.display = 'flex';
+    fileIcon.textContent = fileData.fileExtension;
+    fileName.textContent = fileData.fileName;
+    filePath.textContent = fileData.filePath;
+
+    // Update breadcrumbs
+    updateBreadcrumbs(fileData.fileName);
+
+    // Update status bar
+    document.getElementById('file-context').textContent = `📁 ${fileData.fileName}`;
+}
+
+function updateBreadcrumbs(fileName) {
+    // Update all breadcrumb current file displays
+    document.getElementById('cg-current-file').textContent = fileName;
+    document.getElementById('vt-current-file').textContent = fileName;
+    document.getElementById('wi-current-file').textContent = fileName;
+    document.getElementById('se-current-file').textContent = fileName;
+    document.getElementById('tl-current-file').textContent = fileName;
+}
+
+function jumpToSourceLocation(file, line, column) {
+    vscode.postMessage({
+        command: 'jumpToSource',
+        file: file || currentData.currentFile.path,
+        line: line || 0,
+        column: column || 0
+    });
+}
+
+function highlightCodeRange(startLine, endLine) {
+    vscode.postMessage({
+        command: 'highlightCodeRange',
+        startLine: startLine,
+        endLine: endLine
     });
 }
 
@@ -142,9 +219,215 @@ function updateCallGraphVisualization(callGraphData) {
     currentData.callGraph = callGraphData;
     
     const svg = d3.select('#call-graph-svg .zoom-group');
-    svg.selectAll('*').remove(); // Clear existing content
+    svg.selectAll('*').remove(); // Clear previous visualization
+    
+    if (!callGraphData || !callGraphData.nodes) {
+        showPlaceholder('#call-graph-viz', 'No call graph data available');
+        return;
+    }
 
-    if (!callGraphData || !callGraphData.rootNodes) return;
+    // Update file context in the visualization
+    const sourceFileName = callGraphData.sourceFile || currentData.currentFile.name;
+    document.getElementById('cg-current-file').textContent = `${sourceFileName} - Call Graph`;
+
+    const width = parseInt(svg.attr('width')) || 800;
+    const height = parseInt(svg.attr('height')) || 600;
+
+    // Create simulation
+    const simulation = d3.forceSimulation(callGraphData.nodes)
+        .force('link', d3.forceLink(callGraphData.links).id(d => d.id).distance(100))
+        .force('charge', d3.forceManyBody().strength(-300))
+        .force('center', d3.forceCenter(width / 2, height / 2));
+
+    // Create links
+    const link = svg.append('g')
+        .attr('class', 'links')
+        .selectAll('line')
+        .data(callGraphData.links)
+        .enter().append('line')
+        .attr('class', 'link-element')
+        .attr('stroke-width', 2);
+
+    // Create nodes
+    const node = svg.append('g')
+        .attr('class', 'nodes')
+        .selectAll('g')
+        .data(callGraphData.nodes)
+        .enter().append('g')
+        .attr('class', 'node-group')
+        .call(d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended));
+
+    // Add circles for nodes
+    node.append('circle')
+        .attr('class', 'node-element function-node')
+        .attr('r', d => Math.max(20, Math.min(40, d.callCount * 5)))
+        .on('click', function(event, d) {
+            handleNodeClick(d);
+        })
+        .on('mouseover', function(event, d) {
+            showTooltip(event, d, 'function');
+        })
+        .on('mouseout', hideTooltip);
+
+    // Add labels with file prefix
+    node.append('text')
+        .attr('class', 'node-label')
+        .attr('dy', '.35em')
+        .text(d => `${sourceFileName}:${d.name}`)
+        .style('font-size', '10px')
+        .style('fill', 'var(--foreground)');
+
+    // Update simulation
+    simulation.on('tick', () => {
+        link
+            .attr('x1', d => d.source.x)
+            .attr('y1', d => d.source.y)
+            .attr('x2', d => d.target.x)
+            .attr('y2', d => d.target.y);
+
+        node
+            .attr('transform', d => `translate(${d.x},${d.y})`);
+    });
+
+    // Update metrics
+    updateCallGraphMetrics(callGraphData);
+
+    function dragstarted(event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    function dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    function dragended(event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+}
+
+// Helper functions for visualizations
+function handleNodeClick(nodeData) {
+    // Jump to source code location if available
+    if (nodeData.file && nodeData.line) {
+        jumpToSourceLocation(nodeData.file, nodeData.line, nodeData.column || 0);
+    } else {
+        jumpToSourceLocation(currentData.currentFile.path, nodeData.startLine || 0, 0);
+    }
+}
+
+function showTooltip(event, data, type) {
+    const tooltip = document.getElementById('tooltip');
+    let content = '';
+    
+    switch (type) {
+        case 'function':
+            content = `
+                <strong>${data.name}</strong><br/>
+                File: ${currentData.currentFile.name}<br/>
+                Calls: ${data.callCount || 0}<br/>
+                Line: ${data.startLine || 'Unknown'}<br/>
+                <em>Click to jump to source</em>
+            `;
+            break;
+        case 'variable':
+            content = `
+                <strong>${data.name}</strong><br/>
+                Type: ${data.type || 'Unknown'}<br/>
+                Value: ${data.value || 'N/A'}<br/>
+                Scope: ${data.scope || 'Unknown'}
+            `;
+            break;
+        case 'sideEffect':
+            content = `
+                <strong>${data.type}</strong><br/>
+                Impact: ${data.impact || 'Unknown'}<br/>
+                Function: ${data.function || 'Unknown'}<br/>
+                Description: ${data.description || 'No description'}
+            `;
+            break;
+    }
+    
+    tooltip.innerHTML = content;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (event.pageX + 10) + 'px';
+    tooltip.style.top = (event.pageY - 10) + 'px';
+}
+
+function hideTooltip() {
+    document.getElementById('tooltip').style.display = 'none';
+}
+
+function showPlaceholder(selector, message) {
+    d3.select(selector).selectAll('*').remove();
+    d3.select(selector)
+        .append('div')
+        .attr('class', 'placeholder')
+        .text(message);
+}
+
+function updateCallGraphMetrics(data) {
+    document.getElementById('total-functions').textContent = data.nodes ? data.nodes.length : 0;
+    document.getElementById('call-depth').textContent = calculateCallDepth(data);
+}
+
+function calculateCallDepth(data) {
+    if (!data.nodes || !data.links) return 0;
+    
+    // Calculate maximum depth using BFS
+    let maxDepth = 0;
+    const visited = new Set();
+    const depths = new Map();
+    
+    // Find root nodes (nodes with no incoming edges)
+    const incomingEdges = new Set(data.links.map(link => link.target));
+    const rootNodes = data.nodes.filter(node => !incomingEdges.has(node.id));
+    
+    if (rootNodes.length === 0) return data.nodes.length; // Fallback for circular graphs
+    
+    function dfs(nodeId, depth) {
+        if (visited.has(nodeId)) return;
+        visited.add(nodeId);
+        depths.set(nodeId, depth);
+        maxDepth = Math.max(maxDepth, depth);
+        
+        // Find outgoing edges
+        const outgoing = data.links.filter(link => link.source === nodeId);
+        outgoing.forEach(link => dfs(link.target, depth + 1));
+    }
+    
+    rootNodes.forEach(node => dfs(node.id, 1));
+    
+    return maxDepth;
+}
+
+function loadTemplateInputs() {
+    const mockInputs = document.getElementById('mock-inputs');
+    const template = {
+        "variables": {
+            "input1": "test value",
+            "number1": 42,
+            "flag1": true
+        },
+        "parameters": {
+            "param1": "modified value",
+            "param2": 100
+        },
+        "environment": {
+            "NODE_ENV": "test",
+            "DEBUG": true
+        }
+    };
+    
+    mockInputs.value = JSON.stringify(template, null, 2);
+}
 
     // Create force simulation
     const simulation = d3.forceSimulation()

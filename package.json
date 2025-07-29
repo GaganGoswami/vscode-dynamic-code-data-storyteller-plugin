@@ -4,9 +4,10 @@
   "description": "Real-time interactive visualization of code execution, data flow, call graphs, and test coverage across multiple languages",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/dynamic-code-storyteller.git"
+    "url": "https://github.com/GaganGoswami/vscode-dynamic-code-data-storyteller-plugin.git"
   },
   "version": "0.0.1",
+  "publisher": "GaganGoswami",
   "engines": {
     "vscode": "^1.74.0"
   },

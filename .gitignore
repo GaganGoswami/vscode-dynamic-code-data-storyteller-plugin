@@ -128,3 +128,15 @@ tree-sitter-*/
 
 # VM2 sandbox temporary files
 vm2-temp-*
+
+# Backup and temporary files
+*-backup.*
+*-temp.*
+extension-*.ts
+extension-*.js
+FINAL_FIX.md
+FIXED_EXTENSION.md
+FULL_FEATURES.md
+INSTALLATION.md
+TROUBLESHOOTING.md
+URGENT_FIX.md

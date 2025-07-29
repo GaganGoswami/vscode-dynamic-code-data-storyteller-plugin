@@ -16,14 +16,16 @@
     "Testing"
   ],
   "activationEvents": [
-    "onDebugSessionStart",
-    "onCommand:storyteller.traceVariable",
-    "onCommand:storyteller.showCallGraph",
-    "onCommand:storyteller.whatIfAnalysis"
+    "*"
   ],
-  "main": "./out/src/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "storyteller.test",
+        "title": "Test Extension",
+        "category": "Code Storyteller"
+      },
       {
         "command": "storyteller.traceVariable",
         "title": "Trace Variable",
@@ -55,6 +57,9 @@
       ],
       "commandPalette": [
         {
+          "command": "storyteller.test"
+        },
+        {
           "command": "storyteller.traceVariable"
         },
         {
@@ -68,6 +73,31 @@
         }
       ]
     },
+    "keybindings": [
+      {
+        "command": "storyteller.traceVariable",
+        "key": "ctrl+alt+t",
+        "mac": "cmd+alt+t",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "storyteller.showCallGraph",
+        "key": "ctrl+alt+g",
+        "mac": "cmd+alt+g",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "storyteller.whatIfAnalysis",
+        "key": "ctrl+alt+w",
+        "mac": "cmd+alt+w",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "storyteller.openVisualization",
+        "key": "ctrl+alt+v",
+        "mac": "cmd+alt+v"
+      }
+    ],
     "debuggers": [
       {
         "type": "storyteller",
